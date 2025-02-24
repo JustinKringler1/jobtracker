@@ -12,30 +12,44 @@ from io import BytesIO
 def get_gmail_service():
     creds = None
     token_json = os.getenv("GMAIL_REFRESH_TOKEN")
-    
+
     if token_json:
-        creds = Credentials.from_authorized_user_info(json.loads(token_json))
+        try:
+            # Ensure the JSON is properly decoded
+            credentials_dict = json.loads(token_json.replace('\\"', '"'))
+            creds = Credentials.from_authorized_user_info(credentials_dict)
+        except json.JSONDecodeError:
+            raise ValueError("GMAIL_REFRESH_TOKEN is not a valid JSON. Ensure it's correctly formatted in GitHub Secrets.")
     else:
         raise ValueError("GMAIL_REFRESH_TOKEN not set in GitHub Secrets.")
-    
+
     if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())
-    
+
     return build('gmail', 'v1', credentials=creds)
+
+
 
 def get_drive_service():
     creds = None
     token_json = os.getenv("GOOGLE_DRIVE_REFRESH_TOKEN")
-    
+
     if token_json:
-        creds = Credentials.from_authorized_user_info(json.loads(token_json))
+        try:
+            # Ensure the JSON is properly decoded
+            credentials_dict = json.loads(token_json.replace('\\"', '"'))
+            creds = Credentials.from_authorized_user_info(credentials_dict)
+        except json.JSONDecodeError:
+            raise ValueError("GOOGLE_DRIVE_REFRESH_TOKEN is not a valid JSON. Ensure it's correctly formatted in GitHub Secrets.")
     else:
         raise ValueError("GOOGLE_DRIVE_REFRESH_TOKEN not set in GitHub Secrets.")
-    
+
     if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())
-    
+
     return build('drive', 'v3', credentials=creds)
+
+
 
 def fetch_recent_emails():
     service = get_gmail_service()
