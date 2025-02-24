@@ -89,6 +89,7 @@ def update_csv(email_data):
     file_id = None
     existing_data = set()
     
+    # Retrieve existing file if it exists
     response = drive_service.files().list(q=f"name='{filename}' and '{folder_id}' in parents", fields='files(id)').execute()
     files = response.get('files', [])
     
@@ -105,22 +106,32 @@ def update_csv(email_data):
         next(csv_reader)  # Skip header
         for row in csv_reader:
             existing_data.add(tuple(row))
-    
+
+    new_entries = []
+    for date_received, sender, subject, snippet in email_data:
+        new_entry_key = (date_received, sender, snippet)  # Check uniqueness **before** classification
+        if new_entry_key not in existing_data:
+            category, classified_sender, classified_subject, classified_snippet = classify_email(f"{subject}\n{snippet}")
+            new_entries.append((date_received, category, classified_sender, classified_subject, classified_snippet))
+            existing_data.add(new_entry_key)  # Add to existing_data to prevent future duplication
+
+    if not new_entries:
+        print("No new unique emails to classify.")
+        return
+
     with open(filename, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(["Date", "Category", "Sender", "Subject", "Snippet"])
-        for date_received, sender, subject, snippet in email_data:
-            category, classified_sender, classified_subject, classified_snippet = classify_email(f"{subject}\n{snippet}")
-            new_entry = (date_received, category, classified_sender, classified_subject, classified_snippet)
-            if new_entry not in existing_data:
-                writer.writerow(new_entry)
-    
+        for entry in new_entries:
+            writer.writerow(entry)
+
     media = MediaFileUpload(filename, mimetype='text/csv', resumable=True)
     if file_id:
         drive_service.files().update(fileId=file_id, media_body=media).execute()
     else:
         file_metadata = {'name': filename, 'parents': [folder_id]}
         drive_service.files().create(body=file_metadata, media_body=media).execute()
+
 
 def main():
     emails = fetch_recent_emails()
