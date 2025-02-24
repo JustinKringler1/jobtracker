@@ -4,9 +4,10 @@ import datetime
 import pickle
 import json
 import openai
-from googleapiclient.discovery import build
-from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 from io import BytesIO
 
@@ -29,7 +30,7 @@ def get_gmail_service():
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_config(credentials_dict, ['https://www.googleapis.com/auth/gmail.readonly'])
-            creds = flow.run_local_server(port=0)
+            creds = flow.run_console()
         
         with open(token_file, 'wb') as token:
             pickle.dump(creds, token)
@@ -37,9 +38,29 @@ def get_gmail_service():
     return build('gmail', 'v1', credentials=creds)
 
 def get_drive_service():
-    creds_json = os.getenv("GMAIL_OAUTH_CREDENTIALS")
-    creds_dict = json.loads(creds_json)
-    creds = InstalledAppFlow.from_client_config(creds_dict, ['https://www.googleapis.com/auth/drive']).run_local_server(port=0)
+    creds = None
+    token_file = "drive_token.json"
+    credentials_json = os.getenv("GMAIL_OAUTH_CREDENTIALS")
+    
+    if credentials_json:
+        credentials_dict = json.loads(credentials_json)
+    else:
+        raise ValueError("GMAIL_OAUTH_CREDENTIALS environment variable not set.")
+    
+    if os.path.exists(token_file):
+        with open(token_file, 'rb') as token:
+            creds = pickle.load(token)
+    
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_config(credentials_dict, ['https://www.googleapis.com/auth/drive'])
+            creds = flow.run_console()
+        
+        with open(token_file, 'wb') as token:
+            pickle.dump(creds, token)
+    
     return build('drive', 'v3', credentials=creds)
 
 def fetch_recent_emails():
