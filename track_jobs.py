@@ -61,6 +61,21 @@ def classify_email(content):
         model="gpt-4-turbo",
         messages=[
             {"role": "system", "content": "You are a helpful email classifier. Always output in the format: Category|Sender|Subject|Snippet."},
+            {"role": "user", "content": f"Classify the following email into one of these categories: 
+- Application Submitted 
+- Interview Received 
+- Rejection Notice 
+- Follow-up Needed 
+- Irrelevant 
+
+Format your response as: Category|Sender|Subject|Snippet 
+
+Email: {content}"}
+        ]
+    )(
+        model="gpt-4-turbo",
+        messages=[
+            {"role": "system", "content": "You are a helpful email classifier. Always output in the format: Category|Sender|Subject|Snippet."},
             {"role": "user", "content": f"Classify the following email into one of these categories: \n- Application Submitted \n- Interview Received \n- Rejection Notice \n- Follow-up Needed \n- Irrelevant \n\nFormat your response as: Category|Sender|Subject|Snippet \n\nEmail: {content}"}
         ]
     )
@@ -121,3 +136,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
