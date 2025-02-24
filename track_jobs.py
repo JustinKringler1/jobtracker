@@ -131,7 +131,7 @@ def classify_email(content, sender, subject):
 def update_csv(email_data):
     """
     Updates the job applications CSV file stored in Google Drive.
-    Ensures no duplicate entries and filters out irrelevant messages.
+    Ensures no duplicate entries and handles cases where no CSV file exists.
 
     :param email_data: List of tuples (date_received, sender, subject, snippet).
     """
@@ -141,10 +141,11 @@ def update_csv(email_data):
     file_id = None
     existing_data = set()
     
-    # Retrieve existing file if it exists
+    # Attempt to retrieve the existing CSV file from Google Drive
     response = drive_service.files().list(q=f"name='{filename}' and '{folder_id}' in parents", fields='files(id)').execute()
     files = response.get('files', [])
-    
+
+    # If a file exists, read its contents
     if files:
         file_id = files[0]['id']
         request = drive_service.files().get_media(fileId=file_id)
@@ -154,38 +155,49 @@ def update_csv(email_data):
         while not done:
             status, done = downloader.next_chunk()
         file_stream.seek(0)
+        
+        # Read existing CSV file and store its content to prevent duplicates
         csv_reader = csv.reader(file_stream.read().decode('utf-8').splitlines())
-        next(csv_reader)  # Skip header
+        next(csv_reader, None)  # Skip header row
         for row in csv_reader:
             existing_data.add(tuple(row))
 
     new_entries = []
     for date_received, sender, subject, snippet in email_data:
-        # Ensure classification is based on sender & subject
         category, classified_sender, classified_subject, classified_snippet = classify_email(snippet, sender, subject)
-
         new_entry_key = (date_received, classified_sender, classified_snippet)
-        
+
+        # Add only unique and relevant emails
         if new_entry_key not in existing_data and category != "Irrelevant":
             new_entries.append((date_received, category, classified_sender, classified_subject, classified_snippet))
-            existing_data.add(new_entry_key)  # Prevent future duplicates
+            existing_data.add(new_entry_key)
+
+    # If no new entries and no existing file, create a new CSV file
+    if not new_entries and not files:
+        print("No existing CSV found. Creating a new file with headers.")
+        new_entries.append(("Date", "Category", "Sender", "Subject", "Snippet"))
 
     if not new_entries:
         print("No new unique emails to classify.")
         return
 
+    # Write new CSV file
     with open(filename, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(["Date", "Category", "Sender", "Subject", "Snippet"])
         for entry in new_entries:
             writer.writerow(entry)
 
+    # Upload to Google Drive
     media = MediaFileUpload(filename, mimetype='text/csv', resumable=True)
     if file_id:
         drive_service.files().update(fileId=file_id, media_body=media).execute()
     else:
         file_metadata = {'name': filename, 'parents': [folder_id]}
         drive_service.files().create(body=file_metadata, media_body=media).execute()
+
+    print("CSV file updated successfully.")
+
 
 def main():
     """Main function to fetch, classify, and store job application emails."""
