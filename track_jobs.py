@@ -1,3 +1,14 @@
+"""
+Job Tracker Script
+------------------
+This script automates tracking job applications by:
+1. Fetching recent emails from Gmail.
+2. Classifying job-related emails using OpenAI's API.
+3. Storing the results in a Google Drive CSV file.
+
+It runs daily via GitHub Actions and ensures no duplicate processing.
+"""
+
 import os
 import csv
 import datetime
@@ -10,6 +21,7 @@ from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 from io import BytesIO
 
 def get_gmail_service():
+    """Authenticate and return a Gmail API service instance."""
     creds = None
     token_json = os.getenv("GMAIL_REFRESH_TOKEN")
     
@@ -24,6 +36,7 @@ def get_gmail_service():
     return build('gmail', 'v1', credentials=creds)
 
 def get_drive_service():
+    """Authenticate and return a Google Drive API service instance."""
     creds = None
     token_json = os.getenv("GOOGLE_DRIVE_REFRESH_TOKEN")
     
@@ -38,8 +51,9 @@ def get_drive_service():
     return build('drive', 'v3', credentials=creds)
 
 def fetch_recent_emails():
+    """Retrieve emails from the last 24 hours and extract relevant details."""
     service = get_gmail_service()
-    query = "newer_than:1d"  # Emails from last 24 hours
+    query = "newer_than:1d"  # Emails from the last 24 hours
     results = service.users().messages().list(userId='me', q=query).execute()
     messages = results.get('messages', [])
     
@@ -56,9 +70,10 @@ def fetch_recent_emails():
     return email_data
 
 def classify_email(content):
+    """Classify an email's content into predefined categories using OpenAI."""
     openai.api_key = os.getenv("OPENAI_API_KEY")
     response = openai.chat.completions.create(
-        model="gpt-4o-2024-11-20",
+        model="gpt-4",
         messages=[
             {"role": "system", "content": "You are a helpful email classifier. Always output in the format: Category|Sender|Subject|Snippet."},
             {"role": "user", "content": f"""Classify the following email into one of these categories: 
@@ -83,13 +98,13 @@ def classify_email(content):
         return "Irrelevant", "Unknown", "Invalid Response", content[:50]
 
 def update_csv(email_data):
+    """Update job applications CSV file stored in Google Drive."""
     drive_service = get_drive_service()
     folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
     filename = "job_applications.csv"
     file_id = None
     existing_data = set()
     
-    # Retrieve existing file if it exists
     response = drive_service.files().list(q=f"name='{filename}' and '{folder_id}' in parents", fields='files(id)').execute()
     files = response.get('files', [])
     
@@ -106,25 +121,16 @@ def update_csv(email_data):
         next(csv_reader)  # Skip header
         for row in csv_reader:
             existing_data.add(tuple(row))
-
-    new_entries = []
-    for date_received, sender, subject, snippet in email_data:
-        new_entry_key = (date_received, sender, snippet)  # Check uniqueness **before** classification
-        if new_entry_key not in existing_data:
-            category, classified_sender, classified_subject, classified_snippet = classify_email(f"{subject}\n{snippet}")
-            new_entries.append((date_received, category, classified_sender, classified_subject, classified_snippet))
-            existing_data.add(new_entry_key)  # Add to existing_data to prevent future duplication
-
-    if not new_entries:
-        print("No new unique emails to classify.")
-        return
-
+    
     with open(filename, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(["Date", "Category", "Sender", "Subject", "Snippet"])
-        for entry in new_entries:
-            writer.writerow(entry)
-
+        for date_received, sender, subject, snippet in email_data:
+            category, classified_sender, classified_subject, classified_snippet = classify_email(f"{subject}\n{snippet}")
+            new_entry = (date_received, category, classified_sender, classified_subject, classified_snippet)
+            if new_entry not in existing_data:
+                writer.writerow(new_entry)
+    
     media = MediaFileUpload(filename, mimetype='text/csv', resumable=True)
     if file_id:
         drive_service.files().update(fileId=file_id, media_body=media).execute()
@@ -132,8 +138,8 @@ def update_csv(email_data):
         file_metadata = {'name': filename, 'parents': [folder_id]}
         drive_service.files().create(body=file_metadata, media_body=media).execute()
 
-
 def main():
+    """Main function to fetch, classify, and store job application emails."""
     emails = fetch_recent_emails()
     if emails:
         update_csv(emails)
