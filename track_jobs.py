@@ -113,7 +113,7 @@ def classify_email(content, sender, subject):
         return "Irrelevant", sender, subject, content[:100]
 
     # Auto-classify as "Irrelevant" for GitHub and automated emails
-    if "noreply" in sender.lower() or "github.com" in sender.lower():
+    if "github.com" in sender.lower():
         return "Irrelevant", sender, subject, content[:100]
 
     # Define system instructions for OpenAI
