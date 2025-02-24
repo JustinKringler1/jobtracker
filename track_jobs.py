@@ -140,7 +140,8 @@ def update_csv(email_data):
     filename = "job_applications.csv"
     file_id = None
     existing_data = set()
-    
+    csv_needs_creation = False  # Track whether a new CSV file needs to be created
+
     # Check if CSV file exists in Google Drive
     response = drive_service.files().list(q=f"name='{filename}' and '{folder_id}' in parents", fields='files(id)').execute()
     files = response.get('files', [])
@@ -161,6 +162,9 @@ def update_csv(email_data):
         headers = next(csv_reader, None)  # Read header row
         for row in csv_reader:
             existing_data.add(tuple(row))  # Store existing entries
+    else:
+        print("No existing CSV file found. A new one will be created.")
+        csv_needs_creation = True  # Mark that a new file needs to be created
 
     new_entries = []
     
@@ -174,7 +178,19 @@ def update_csv(email_data):
             new_entries.append((date_received, category, classified_sender, classified_subject, classified_snippet))
             existing_data.add(new_entry_key)  # Prevent future duplicates
 
-    # If no new emails exist, exit function
+    # If no existing file and no new data, create a file with just the headers
+    if csv_needs_creation and not new_entries:
+        print("No emails found, but creating a CSV with headers in Google Drive.")
+        with open(filename, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Date", "Category", "Sender", "Subject", "Snippet"])
+
+        media = MediaFileUpload(filename, mimetype='text/csv', resumable=True)
+        file_metadata = {'name': filename, 'parents': [folder_id]}
+        drive_service.files().create(body=file_metadata, media_body=media).execute()
+        return  # Exit function after creating an empty file
+
+    # If no new entries, return
     if not new_entries:
         print("No new unique emails to classify.")
         return
