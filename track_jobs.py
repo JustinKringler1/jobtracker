@@ -58,7 +58,7 @@ def fetch_recent_emails():
 def classify_email(content):
     openai.api_key = os.getenv("OPENAI_API_KEY")
     response = openai.chat.completions.create(
-        model="gpt-4-turbo",
+        model="gpt-4o-2024-11-20",
         messages=[
             {"role": "system", "content": "You are a helpful email classifier. Always output in the format: Category|Sender|Subject|Snippet."},
             {"role": "user", "content": f"""Classify the following email into one of these categories: 
