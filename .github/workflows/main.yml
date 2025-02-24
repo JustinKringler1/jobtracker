@@ -1,35 +1,32 @@
-name: Job Application Tracker
+name: Job Tracker Automation
 
 on:
   schedule:
-    - cron: '0 9 * * *'  # Runs daily at 9 AM UTC
-  workflow_dispatch:  # Allows manual triggering
+    - cron: '0 8 * * *'  # Runs daily at 8 AM UTC
+  workflow_dispatch:  # Allows manual runs
 
 jobs:
-  track_jobs:
+  track-jobs:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    - name: Checkout Repository
+      uses: actions/checkout@v3
 
-      - name: Debug - List Files
-        run: ls -R  # Debugging step to check files
+    - name: Set Up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'  # Ensuring Python 3.9 is used
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
+    - name: Install Dependencies
+      run: |
+        pip install -r requirements.txt  # Install from pinned `requirements.txt`
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client openai
-
-      - name: Run Job Tracker Script
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GMAIL_OAUTH_CREDENTIALS: ${{ secrets.GMAIL_OAUTH_CREDENTIALS }}
-          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
-          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
-          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
-        run: python track_jobs.py
+    - name: Run Job Tracker Script
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        GMAIL_OAUTH_CREDENTIALS: ${{ secrets.GMAIL_OAUTH_CREDENTIALS }}
+        GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+        GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+        GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+      run: python track_jobs.py
