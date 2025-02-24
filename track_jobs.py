@@ -50,24 +50,51 @@ def get_drive_service():
     
     return build('drive', 'v3', credentials=creds)
 
+from datetime import datetime, timedelta
+
 def fetch_recent_emails():
-    """Retrieve emails from the last 24 hours and extract relevant details."""
+    """
+    Retrieves emails from Gmail for the last 24 hours and extracts relevant details.
+    Includes logging to verify email retrieval.
+    """
     service = get_gmail_service()
-    query = "newer_than:1d"  # Emails from the last 24 hours
-    results = service.users().messages().list(userId='me', q=query).execute()
-    messages = results.get('messages', [])
     
-    email_data = []
-    for msg in messages:
-        msg_details = service.users().messages().get(userId='me', id=msg['id']).execute()
-        headers = msg_details['payload']['headers']
-        subject = next((h['value'] for h in headers if h['name'] == 'Subject'), "No Subject")
-        sender = next((h['value'] for h in headers if h['name'] == 'From'), "Unknown Sender")
-        date_received = next((h['value'] for h in headers if h['name'] == 'Date'), "Unknown Date")
-        snippet = msg_details.get('snippet', "")
-        email_data.append((date_received, sender, subject, snippet))
+    # Calculate the timestamp for 24 hours ago
+    yesterday = (datetime.utcnow() - timedelta(days=1)).strftime("%Y/%m/%d")
+    query = f"after:{yesterday}"  # Fetches emails after yesterday
     
-    return email_data
+    print(f"Fetching emails using query: {query}")
+
+    try:
+        results = service.users().messages().list(userId='me', q=query).execute()
+        messages = results.get('messages', [])
+
+        if not messages:
+            print("No emails found in the last 24 hours.")
+            return []
+
+        email_data = []
+        for msg in messages:
+            msg_details = service.users().messages().get(userId='me', id=msg['id']).execute()
+            headers = msg_details.get('payload', {}).get('headers', [])
+            
+            subject = next((h['value'] for h in headers if h['name'] == 'Subject'), "No Subject")
+            sender = next((h['value'] for h in headers if h['name'] == 'From'), "Unknown Sender")
+            date_received = next((h['value'] for h in headers if h['name'] == 'Date'), "Unknown Date")
+            snippet = msg_details.get('snippet', "")
+
+            email_data.append((date_received, sender, subject, snippet))
+
+        print(f"Retrieved {len(email_data)} emails from Gmail.")
+        for i, email in enumerate(email_data[:5]):  # Print first 5 emails for verification
+            print(f"Email {i+1}: From: {email[1]} | Subject: {email[2]}")
+        
+        return email_data
+
+    except Exception as e:
+        print(f"Error fetching emails from Gmail: {str(e)}")
+        return []
+
 
 def classify_email(content, sender, subject):
     """
