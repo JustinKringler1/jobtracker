@@ -57,7 +57,7 @@ def fetch_recent_emails():
 
 def classify_email(content):
     openai.api_key = os.getenv("OPENAI_API_KEY")
-    response = openai.ChatCompletion.create(
+    response = openai.chat.completions.create(
         model="gpt-4-turbo",
         messages=[
             {"role": "system", "content": "You are a helpful email classifier. Always output in the format: Category|Sender|Subject|Snippet."},
@@ -74,7 +74,7 @@ def classify_email(content):
         ]
     )
     
-    classification = response["choices"][0]["message"]["content"].strip()
+    classification = response.choices[0].message.content.strip()
     parts = classification.split('|')
     
     if len(parts) == 4:
@@ -130,4 +130,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
