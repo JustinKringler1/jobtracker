@@ -5,75 +5,37 @@ import json
 import openai
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 from io import BytesIO
 
 def get_gmail_service():
     creds = None
-    token_file = "token.json"
-    credentials_file = "credentials.json"
+    token_json = os.getenv("GMAIL_REFRESH_TOKEN")
     
-    # Use GitHub Secrets if running in GitHub Actions
-    if os.getenv("GITHUB_ACTIONS") == "true":
-        credentials_json = os.getenv("GMAIL_OAUTH_CREDENTIALS")
-        if credentials_json:
-            credentials_dict = json.loads(credentials_json)
-        else:
-            raise ValueError("GMAIL_OAUTH_CREDENTIALS environment variable not set.")
+    if token_json:
+        creds = Credentials.from_authorized_user_info(json.loads(token_json))
     else:
-        if not os.path.exists(credentials_file):
-            raise FileNotFoundError(f"Missing OAuth credentials file: {credentials_file}")
-        credentials_dict = json.load(open(credentials_file))
-
-    if os.path.exists(token_file):
-        creds = Credentials.from_authorized_user_file(token_file)
+        raise ValueError("GMAIL_REFRESH_TOKEN not set in GitHub Secrets.")
     
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_config(credentials_dict, ['https://www.googleapis.com/auth/gmail.readonly'])
-            creds = flow.run_console()
-        
-        with open(token_file, 'w') as token:
-            token.write(creds.to_json())
+    if creds and creds.expired and creds.refresh_token:
+        creds.refresh(Request())
     
     return build('gmail', 'v1', credentials=creds)
 
-
 def get_drive_service():
     creds = None
-    token_file = "drive_token.json"
-    credentials_file = "credentials.json"
+    token_json = os.getenv("GOOGLE_DRIVE_REFRESH_TOKEN")
     
-    if os.getenv("GITHUB_ACTIONS") == "true":
-        credentials_json = os.getenv("GMAIL_OAUTH_CREDENTIALS")
-        if credentials_json:
-            credentials_dict = json.loads(credentials_json)
-        else:
-            raise ValueError("GMAIL_OAUTH_CREDENTIALS environment variable not set.")
+    if token_json:
+        creds = Credentials.from_authorized_user_info(json.loads(token_json))
     else:
-        if not os.path.exists(credentials_file):
-            raise FileNotFoundError(f"Missing OAuth credentials file: {credentials_file}")
-        credentials_dict = json.load(open(credentials_file))
-
-    if os.path.exists(token_file):
-        creds = Credentials.from_authorized_user_file(token_file)
+        raise ValueError("GOOGLE_DRIVE_REFRESH_TOKEN not set in GitHub Secrets.")
     
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_config(credentials_dict, ['https://www.googleapis.com/auth/drive'])
-            creds = flow.run_console()
-        
-        with open(token_file, 'w') as token:
-            token.write(creds.to_json())
+    if creds and creds.expired and creds.refresh_token:
+        creds.refresh(Request())
     
     return build('drive', 'v3', credentials=creds)
-
 
 def fetch_recent_emails():
     service = get_gmail_service()
