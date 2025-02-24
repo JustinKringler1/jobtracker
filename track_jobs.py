@@ -155,6 +155,11 @@ def classify_email(content, sender, subject):
     return classification, sender, subject, content[:100]
 
 
+import csv
+import os
+from io import BytesIO
+from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
+
 def update_csv(email_data):
     """
     Updates the job applications CSV file stored in Google Drive.
@@ -167,7 +172,7 @@ def update_csv(email_data):
     filename = "job_applications.csv"
     file_id = None
     existing_data = set()
-    csv_needs_creation = False  # Track whether a new CSV file needs to be created
+    csv_has_data = False  # Track whether the CSV has actual email data
 
     # Check if CSV file exists in Google Drive
     response = drive_service.files().list(q=f"name='{filename}' and '{folder_id}' in parents", fields='files(id)').execute()
@@ -188,10 +193,9 @@ def update_csv(email_data):
         csv_reader = csv.reader(file_stream.read().decode('utf-8').splitlines())
         headers = next(csv_reader, None)  # Read header row
         for row in csv_reader:
-            existing_data.add(tuple(row))  # Store existing entries
-    else:
-        print("No existing CSV file found. A new one will be created.")
-        csv_needs_creation = True  # Mark that a new file needs to be created
+            if row:  # Ensures there are actual email data rows
+                existing_data.add(tuple(row))
+                csv_has_data = True  # Marks that there is real email data
 
     new_entries = []
     
@@ -200,22 +204,19 @@ def update_csv(email_data):
         category, classified_sender, classified_subject, classified_snippet = classify_email(snippet, sender, subject)
         new_entry_key = (date_received, classified_sender, classified_snippet)
 
-        # Add only unique and relevant emails
-        if new_entry_key not in existing_data and category != "Irrelevant":
+        # If the CSV only had headers (no data), process all emails
+        if not csv_has_data:
             new_entries.append((date_received, category, classified_sender, classified_subject, classified_snippet))
             existing_data.add(new_entry_key)  # Prevent future duplicates
 
-    # If no existing file and no new data, create a file with just the headers
-    if csv_needs_creation and not new_entries:
-        print("No emails found, but creating a CSV with headers in Google Drive.")
-        with open(filename, mode='w', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow(["Date", "Category", "Sender", "Subject", "Snippet"])
+        # Otherwise, add only unique and relevant emails
+        elif category != "Irrelevant" and new_entry_key not in existing_data:
+            new_entries.append((date_received, category, classified_sender, classified_subject, classified_snippet))
+            existing_data.add(new_entry_key)  # Prevent future duplicates
 
-        media = MediaFileUpload(filename, mimetype='text/csv', resumable=True)
-        file_metadata = {'name': filename, 'parents': [folder_id]}
-        drive_service.files().create(body=file_metadata, media_body=media).execute()
-        return  # Exit function after creating an empty file
+    # If the CSV exists but only had headers, process all emails
+    if not csv_has_data and new_entries:
+        print("CSV only contained headers. Processing all emails.")
 
     # If no new entries, return
     if not new_entries:
@@ -238,6 +239,7 @@ def update_csv(email_data):
         drive_service.files().create(body=file_metadata, media_body=media).execute()
 
     print("CSV file updated successfully.")
+
 
 
 def main():
