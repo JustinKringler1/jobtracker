@@ -12,44 +12,30 @@ from io import BytesIO
 def get_gmail_service():
     creds = None
     token_json = os.getenv("GMAIL_REFRESH_TOKEN")
-
+    
     if token_json:
-        try:
-            # Ensure the JSON is properly decoded
-            credentials_dict = json.loads(token_json.replace('\\"', '"'))
-            creds = Credentials.from_authorized_user_info(credentials_dict)
-        except json.JSONDecodeError:
-            raise ValueError("GMAIL_REFRESH_TOKEN is not a valid JSON. Ensure it's correctly formatted in GitHub Secrets.")
+        creds = Credentials.from_authorized_user_info(json.loads(token_json))
     else:
         raise ValueError("GMAIL_REFRESH_TOKEN not set in GitHub Secrets.")
-
+    
     if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())
-
+    
     return build('gmail', 'v1', credentials=creds)
-
-
 
 def get_drive_service():
     creds = None
     token_json = os.getenv("GOOGLE_DRIVE_REFRESH_TOKEN")
-
+    
     if token_json:
-        try:
-            # Ensure the JSON is properly decoded
-            credentials_dict = json.loads(token_json.replace('\\"', '"'))
-            creds = Credentials.from_authorized_user_info(credentials_dict)
-        except json.JSONDecodeError:
-            raise ValueError("GOOGLE_DRIVE_REFRESH_TOKEN is not a valid JSON. Ensure it's correctly formatted in GitHub Secrets.")
+        creds = Credentials.from_authorized_user_info(json.loads(token_json))
     else:
         raise ValueError("GOOGLE_DRIVE_REFRESH_TOKEN not set in GitHub Secrets.")
-
+    
     if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())
-
+    
     return build('drive', 'v3', credentials=creds)
-
-
 
 def fetch_recent_emails():
     service = get_gmail_service()
@@ -71,25 +57,15 @@ def fetch_recent_emails():
 
 def classify_email(content):
     openai.api_key = os.getenv("OPENAI_API_KEY")
-    prompt = f"""Classify the following email into one of these categories:
-    - Application Submitted
-    - Interview Received
-    - Rejection Notice
-    - Follow-up Needed
-    - Irrelevant
-    
-    Format your response as: Category|Sender|Subject|Snippet
-    
-    Email: {content}
-    """
-    
     response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[{"role": "system", "content": "You are a helpful email classifier. Always output in the format: Category|Sender|Subject|Snippet."},
-                  {"role": "user", "content": prompt}]
+        model="gpt-4-turbo",
+        messages=[
+            {"role": "system", "content": "You are a helpful email classifier. Always output in the format: Category|Sender|Subject|Snippet."},
+            {"role": "user", "content": f"Classify the following email into one of these categories: \n- Application Submitted \n- Interview Received \n- Rejection Notice \n- Follow-up Needed \n- Irrelevant \n\nFormat your response as: Category|Sender|Subject|Snippet \n\nEmail: {content}"}
+        ]
     )
     
-    classification = response['choices'][0]['message']['content'].strip()
+    classification = response["choices"][0]["message"]["content"].strip()
     parts = classification.split('|')
     
     if len(parts) == 4:
