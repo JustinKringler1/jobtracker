@@ -35,7 +35,7 @@ def get_gmail_service():
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_config(credentials_dict, ['https://www.googleapis.com/auth/gmail.readonly'])
-            creds = flow.run_local_server(port=0)
+            creds = flow.run_console()
         
         with open(token_file, 'w') as token:
             token.write(creds.to_json())
@@ -67,7 +67,7 @@ def get_drive_service():
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_config(credentials_dict, ['https://www.googleapis.com/auth/drive'])
-            creds = flow.run_local_server(port=0)
+            creds = flow.run_console()
         
         with open(token_file, 'w') as token:
             token.write(creds.to_json())
