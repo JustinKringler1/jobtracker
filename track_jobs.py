@@ -116,18 +116,25 @@ def classify_email(content, sender, subject):
     if "github.com" in sender.lower():
         return "Irrelevant", sender, subject, content[:100]
 
-    # Define system instructions for OpenAI
-    system_prompt = (
-        "You are an email classifier. Your job is to classify emails into one of the following categories:\n"
-        "- Application Submitted\n"
-        "- Interview Received\n"
-        "- Rejection Notice\n"
-        "- Follow-up Needed\n"
-        "- Irrelevant\n\n"
-        "Rules:\n"
-        "1. Return only the category name, with no extra words or formatting.\n"
-        "2. If unsure, return 'Irrelevant'.\n"
-    )
+# Define system instructions for OpenAI
+system_prompt = (
+    "You are an AI assistant designed to track job application statuses from email communications. "
+    "Your task is to analyze emails and classify them strictly based on their relevance to job applications. "
+    "Ignore any emails that are unrelated to job searches, applications, interviews, or rejections.\n\n"
+    
+    "Classify emails into one of the following categories:\n"
+    "- Application Submitted: The email confirms that a job application has been successfully submitted.\n"
+    "- Interview Received: The email contains an invitation to interview for a job.\n"
+    "- Rejection Notice: The email states that an application has been rejected.\n"
+    "- Follow-up Needed: The email requests additional information, assessments, or action related to a job application.\n"
+    "- Irrelevant: The email does not pertain to job applications or status updates.\n\n"
+    
+    "Rules:\n"
+    "1. Return only the category name, with no extra words or formatting.\n"
+    "2. If an email contains a mix of relevant and irrelevant information, classify it based only on job-related content.\n"
+    "3. If unsure, return 'Irrelevant'.\n"
+)
+
 
     user_prompt = f"Email Subject: {subject}\n\nEmail Content: {content}\n\nWhat is the correct category?"
 
