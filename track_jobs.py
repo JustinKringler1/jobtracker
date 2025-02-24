@@ -193,7 +193,7 @@ def update_csv(email_data):
         csv_reader = csv.reader(file_stream.read().decode('utf-8').splitlines())
         headers = next(csv_reader, None)  # Read header row
         for row in csv_reader:
-            if row:  # Ensures there are actual email data rows
+            if len(row) >= 5:  # Ensure it's a valid row with content
                 existing_data.add(tuple(row))
                 csv_has_data = True  # Marks that there is real email data
 
@@ -202,16 +202,16 @@ def update_csv(email_data):
     for date_received, sender, subject, snippet in email_data:
         # Ensure classification is based on sender & subject
         category, classified_sender, classified_subject, classified_snippet = classify_email(snippet, sender, subject)
-        new_entry_key = (date_received, classified_sender, classified_snippet)
+        new_entry_key = (date_received, category, classified_sender, classified_subject, classified_snippet)
 
         # If the CSV only had headers (no data), process all emails
         if not csv_has_data:
-            new_entries.append((date_received, category, classified_sender, classified_subject, classified_snippet))
+            new_entries.append(new_entry_key)  # Add full data row
             existing_data.add(new_entry_key)  # Prevent future duplicates
 
         # Otherwise, add only unique and relevant emails
         elif category != "Irrelevant" and new_entry_key not in existing_data:
-            new_entries.append((date_received, category, classified_sender, classified_subject, classified_snippet))
+            new_entries.append(new_entry_key)
             existing_data.add(new_entry_key)  # Prevent future duplicates
 
     # If the CSV exists but only had headers, process all emails
@@ -223,12 +223,15 @@ def update_csv(email_data):
         print("No new unique emails to classify.")
         return
 
+    # Correct header order
+    column_headers = ["Date", "Category", "Sender", "Subject", "Snippet"]
+
     # Write CSV file (Ensures single header row)
     with open(filename, mode='w', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow(["Date", "Category", "Sender", "Subject", "Snippet"])
+        writer.writerow(column_headers)
         for entry in existing_data.union(new_entries):  # Combine old + new emails
-            writer.writerow(entry)
+            writer.writerow(entry)  # Ensure the correct data structure
 
     # Upload updated CSV to Google Drive
     media = MediaFileUpload(filename, mimetype='text/csv', resumable=True)
@@ -239,8 +242,6 @@ def update_csv(email_data):
         drive_service.files().create(body=file_metadata, media_body=media).execute()
 
     print("CSV file updated successfully.")
-
-
 
 def main():
     """Main function to fetch, classify, and store job application emails."""
