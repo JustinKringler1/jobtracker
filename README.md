@@ -51,6 +51,7 @@ python generate_tokens.py
 ```
 - A **browser will open** → Log in and **grant permissions** for Gmail and Drive.
 - It will generate **`token.json`** and **`drive_token.json`**, which store access tokens.
+- NOTE these json files might need to be cleaned up due to how they are generated, you can use an llm to clean it but make sure it does not save your input.
 
 #### Step 3: Store Tokens in GitHub Secrets
 Since GitHub Actions **cannot perform interactive authentication**, store the tokens in **GitHub Secrets**:
