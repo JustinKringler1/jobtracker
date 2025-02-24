@@ -1,7 +1,6 @@
 import os
 import csv
 import datetime
-import pickle
 import json
 import openai
 from google.auth.transport.requests import Request
@@ -14,52 +13,46 @@ from io import BytesIO
 def get_gmail_service():
     creds = None
     token_file = "token.json"
-    credentials_json = os.getenv("GMAIL_OAUTH_CREDENTIALS")
+    credentials_file = "credentials.json"
     
-    if credentials_json:
-        credentials_dict = json.loads(credentials_json)
-    else:
-        raise ValueError("GMAIL_OAUTH_CREDENTIALS environment variable not set.")
+    if not os.path.exists(credentials_file):
+        raise FileNotFoundError(f"Missing OAuth credentials file: {credentials_file}")
     
     if os.path.exists(token_file):
-        with open(token_file, 'rb') as token:
-            creds = pickle.load(token)
+        creds = Credentials.from_authorized_user_file(token_file)
     
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_config(credentials_dict, ['https://www.googleapis.com/auth/gmail.readonly'])
-            creds = flow.run_console()
+            flow = InstalledAppFlow.from_client_secrets_file(credentials_file, ['https://www.googleapis.com/auth/gmail.readonly'])
+            creds = flow.run_local_server(port=0)
         
-        with open(token_file, 'wb') as token:
-            pickle.dump(creds, token)
+        with open(token_file, 'w') as token:
+            token.write(creds.to_json())
     
     return build('gmail', 'v1', credentials=creds)
 
 def get_drive_service():
     creds = None
     token_file = "drive_token.json"
-    credentials_json = os.getenv("GMAIL_OAUTH_CREDENTIALS")
+    credentials_file = "credentials.json"
     
-    if credentials_json:
-        credentials_dict = json.loads(credentials_json)
-    else:
-        raise ValueError("GMAIL_OAUTH_CREDENTIALS environment variable not set.")
+    if not os.path.exists(credentials_file):
+        raise FileNotFoundError(f"Missing OAuth credentials file: {credentials_file}")
     
     if os.path.exists(token_file):
-        with open(token_file, 'rb') as token:
-            creds = pickle.load(token)
+        creds = Credentials.from_authorized_user_file(token_file)
     
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_config(credentials_dict, ['https://www.googleapis.com/auth/drive'])
-            creds = flow.run_console()
+            flow = InstalledAppFlow.from_client_secrets_file(credentials_file, ['https://www.googleapis.com/auth/drive'])
+            creds = flow.run_local_server(port=0)
         
-        with open(token_file, 'wb') as token:
-            pickle.dump(creds, token)
+        with open(token_file, 'w') as token:
+            token.write(creds.to_json())
     
     return build('drive', 'v3', credentials=creds)
 
