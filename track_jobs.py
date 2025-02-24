@@ -69,42 +69,79 @@ def fetch_recent_emails():
     
     return email_data
 
-def classify_email(content):
-    """Classify an email's content into predefined categories using OpenAI."""
+def classify_email(content, sender, subject):
+    """
+    Classifies an email's content into predefined categories using OpenAI.
+    Ensures only the correct classification label is returned.
+
+    :param content: The email content (subject + snippet).
+    :param sender: The email sender.
+    :param subject: The email subject.
+    :return: (category, sender, subject, snippet)
+    """
     openai.api_key = os.getenv("OPENAI_API_KEY")
+
+    # Auto-classify as "Irrelevant" if the sender is missing
+    if not sender or sender.strip() == "":
+        return "Irrelevant", sender, subject, content[:100]
+
+    # Auto-classify as "Irrelevant" for GitHub and automated emails
+    if "noreply" in sender.lower() or "github.com" in sender.lower():
+        return "Irrelevant", sender, subject, content[:100]
+
+    # Define system instructions for OpenAI
+    system_prompt = (
+        "You are an email classifier. Your job is to classify emails into one of the following categories:\n"
+        "- Application Submitted\n"
+        "- Interview Received\n"
+        "- Rejection Notice\n"
+        "- Follow-up Needed\n"
+        "- Irrelevant\n\n"
+        "Rules:\n"
+        "1. Return only the category name, with no extra words or formatting.\n"
+        "2. If unsure, return 'Irrelevant'.\n"
+    )
+
+    user_prompt = f"Email Subject: {subject}\n\nEmail Content: {content}\n\nWhat is the correct category?"
+
+    # Call OpenAI (Using GPT-4o for cost efficiency)
     response = openai.chat.completions.create(
-        model="gpt-4",
+        model="gpt-4o",  # Switched to GPT-4o to reduce costs
         messages=[
-            {"role": "system", "content": "You are a helpful email classifier. Always output in the format: Category|Sender|Subject|Snippet."},
-            {"role": "user", "content": f"""Classify the following email into one of these categories: 
-            - Application Submitted 
-            - Interview Received 
-            - Rejection Notice 
-            - Follow-up Needed 
-            - Irrelevant 
-            
-            Format your response as: Category|Sender|Subject|Snippet 
-            
-            Email: {content}"""}
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
         ]
     )
-    
+
+    # Extract response and ensure only the category name is returned
     classification = response.choices[0].message.content.strip()
-    parts = classification.split('|')
-    
-    if len(parts) == 4:
-        return parts[0], parts[1], parts[2], parts[3]
-    else:
-        return "Irrelevant", "Unknown", "Invalid Response", content[:50]
+
+    # Ensure only valid categories are returned
+    valid_categories = [
+        "Application Submitted", "Interview Received", 
+        "Rejection Notice", "Follow-up Needed", "Irrelevant"
+    ]
+
+    if classification not in valid_categories:
+        return "Irrelevant", sender, subject, content[:100]
+
+    return classification, sender, subject, content[:100]
+
 
 def update_csv(email_data):
-    """Update job applications CSV file stored in Google Drive."""
+    """
+    Updates the job applications CSV file stored in Google Drive.
+    Ensures no duplicate entries and filters out irrelevant messages.
+
+    :param email_data: List of tuples (date_received, sender, subject, snippet).
+    """
     drive_service = get_drive_service()
     folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
     filename = "job_applications.csv"
     file_id = None
     existing_data = set()
     
+    # Retrieve existing file if it exists
     response = drive_service.files().list(q=f"name='{filename}' and '{folder_id}' in parents", fields='files(id)').execute()
     files = response.get('files', [])
     
@@ -121,16 +158,28 @@ def update_csv(email_data):
         next(csv_reader)  # Skip header
         for row in csv_reader:
             existing_data.add(tuple(row))
-    
+
+    new_entries = []
+    for date_received, sender, subject, snippet in email_data:
+        # Ensure classification is based on sender & subject
+        category, classified_sender, classified_subject, classified_snippet = classify_email(snippet, sender, subject)
+
+        new_entry_key = (date_received, classified_sender, classified_snippet)
+        
+        if new_entry_key not in existing_data and category != "Irrelevant":
+            new_entries.append((date_received, category, classified_sender, classified_subject, classified_snippet))
+            existing_data.add(new_entry_key)  # Prevent future duplicates
+
+    if not new_entries:
+        print("No new unique emails to classify.")
+        return
+
     with open(filename, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(["Date", "Category", "Sender", "Subject", "Snippet"])
-        for date_received, sender, subject, snippet in email_data:
-            category, classified_sender, classified_subject, classified_snippet = classify_email(f"{subject}\n{snippet}")
-            new_entry = (date_received, category, classified_sender, classified_subject, classified_snippet)
-            if new_entry not in existing_data:
-                writer.writerow(new_entry)
-    
+        for entry in new_entries:
+            writer.writerow(entry)
+
     media = MediaFileUpload(filename, mimetype='text/csv', resumable=True)
     if file_id:
         drive_service.files().update(fileId=file_id, media_body=media).execute()
