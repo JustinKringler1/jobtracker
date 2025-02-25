@@ -133,10 +133,15 @@ def classify_email(content, sender, subject):
     "1. Return only the category name, with no extra words or formatting.\n"
     "2. If an email contains a mix of relevant and irrelevant information, classify it based only on job-related content.\n"
     "3. If unsure, return 'Irrelevant'.\n"
-)
+    )
 
 
-    user_prompt = f"Email Subject: {subject}\n\nEmail Content: {content}\n\nWhat is the correct category?"
+    # Correct indentation for user prompt
+    user_prompt = (
+        f"Email Subject: {subject}\n\n"
+        f"Email Content: {content}\n\n"
+        "What is the correct category?"
+    )
 
     # Call OpenAI (Using GPT-4o for cost efficiency)
     response = openai.chat.completions.create(
