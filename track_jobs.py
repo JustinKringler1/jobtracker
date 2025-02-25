@@ -116,8 +116,8 @@ def classify_email(content, sender, subject):
     if "github.com" in sender.lower():
         return "Irrelevant", sender, subject, content[:100]
 
-# Define system instructions for OpenAI
-system_prompt = (
+    # Define system instructions for OpenAI
+    system_prompt = (
     "You are an AI assistant designed to track job application statuses from email communications. "
     "Your task is to analyze emails and classify them strictly based on their relevance to job applications. "
     "Ignore any emails that are unrelated to job searches, applications, interviews, or rejections.\n\n"
